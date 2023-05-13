@@ -7,7 +7,7 @@ import jwt from 'jsonwebtoken'
 import env from '../utils/validateEnv'
 import axios from 'axios'
 import sendEmail from '../utils/sendEmail'
-import crypto from 'crypto'
+import generateTokenAndVerifyEmail from '../utils/generateTokenAndVerifyEmail'
 
 export const signUp: RequestHandler = async (req, res) => {
   if (req.body.googleAccessToken) {
@@ -29,17 +29,8 @@ export const signUp: RequestHandler = async (req, res) => {
       username: username,
       email: email
     })
-    const token = await new Token({
-      userId: newUser._id,
-      token: crypto.randomBytes(32).toString('hex')
-    }).save()
-    const url = `${env.BASE_URL}/verifyEmail/${newUser.id}/${token.token}`
-    sendEmail(
-      email,
-      'Verify Email',
-      `hello ${username}, welcome to our website. please click on this link: ${url} to verify your email, the link expires in 15mins`,
-      res
-    )
+
+    generateTokenAndVerifyEmail(newUser._id, username, res, email)
 
     successMsg(200, 'success', 'An Email has been sent to your account please verify', res)
   } else {
@@ -65,17 +56,8 @@ export const signUp: RequestHandler = async (req, res) => {
       email: email,
       password: passwordHashed
     })
-    const token = await new Token({
-      userId: newUser._id,
-      token: crypto.randomBytes(32).toString('hex')
-    }).save()
-    const url = `${env.BASE_URL}/verifyEmail/${newUser.id}/${token.token}`
-    sendEmail(
-      email,
-      'Verify Email',
-      `hello ${username}, welcome to our website. please click on this link: ${url} to verify your email, the link expires in 15mins`,
-      res
-    )
+
+    generateTokenAndVerifyEmail(newUser._id, username, res, email)
 
     successMsg(200, 'success', 'An Email has been sent to your account please verify', res)
   }
@@ -91,7 +73,7 @@ export const verifyEmail: RequestHandler = async (req, res) => {
   })
   if (!token) return errMsg(400, 'error', 'bad request', res)
 
-  await User.updateOne({ _id: user._id, verified: true })
+  await User.findOneAndUpdate({ _id: user._id }, { verified: true }, { new: true })
   await token.deleteOne({ _id: user._id })
 
   successMsg(200, 'success', 'email verified successfully', res)
@@ -109,10 +91,16 @@ export const login: RequestHandler = async (req, res) => {
       })
       .then(async (response) => {
         const email = response.data.email
+        const username = response.data.given_name
+
         const existingUser = await User.findOne({ email })
 
         if (!existingUser) return errMsg(400, 'error', 'invalid credentials', res)
 
+        if (!existingUser?.verified) {
+          generateTokenAndVerifyEmail(existingUser?._id, username, res, email)
+          return successMsg(400, 'login failed', 'please verify your account via the email sent to you', res)
+        }
         const payload = {
           name: existingUser.username,
           email: existingUser.email
@@ -141,6 +129,11 @@ export const login: RequestHandler = async (req, res) => {
 
     if (!user) {
       return errMsg(400, 'error', 'invalid username or password', res)
+    }
+
+    if (user?.verified === false) {
+      generateTokenAndVerifyEmail(user?._id, user?.username, res, email)
+      return successMsg(200, 'login failed', 'please verify your account via the email sent to you', res)
     }
     const checkPwd = user.password
     if (!req.body.googleAccessToken && !password) {
