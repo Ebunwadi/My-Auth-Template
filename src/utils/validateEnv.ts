@@ -7,5 +7,8 @@ export default cleanEnv(process.env, {
   ACCESS_TOKEN_SECRET: str(),
   REFRESH_TOKEN_SECRET: str(),
   JWT_SECRET: str(),
-  MAIL_PASSWORD: str()
+  MAIL_PASSWORD: str(),
+  MAIL_USER: str(),
+  MAIL_SERVICE: str(),
+  BASE_URL: str()
 })

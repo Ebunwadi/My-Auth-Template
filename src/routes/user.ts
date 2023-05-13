@@ -1,10 +1,11 @@
 import express from 'express'
 import * as UserController from '../controllers/user.controller'
-import validateSignUp from '../middleware/validations/validate'
 
 const router = express.Router()
 
-router.post('/signup', validateSignUp, UserController.signUp)
+router.post('/signup', UserController.signUp)
+
+router.get('/verifyEmail/:id/:token', UserController.verifyEmail)
 
 router.post('/login', UserController.login)
 
